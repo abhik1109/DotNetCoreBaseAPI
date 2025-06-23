@@ -1,5 +1,6 @@
 ﻿using DotNetCoreBaseAPI.Extensions;
 using DotNetCoreBaseAPI.Handlers;
+using DotNetCoreBaseAPI.Utilities.Enums;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -16,7 +17,7 @@ namespace DotNetCoreBaseAPI
 	public static class ProgramBase
 	{
 
-		public static WebApplicationBuilder CreateWebApplicationBuilder(this WebApplicationBuilder builder, string[] args)
+		public static WebApplicationBuilder CreateWebApplicationBuilder(this WebApplicationBuilder builder, object[] args)
 		{
 			var env = builder.Environment;
 			var isDev = !env.IsProduction();
@@ -47,10 +48,8 @@ namespace DotNetCoreBaseAPI
 			builder.Services.AddSwaggerGen();
 
 			//Register Versioning
-			builder.Services.RegisterApiVersioning();			
+			builder.Services.RegisterApiVersioning();
 
-			//Register DB Services
-			builder.Services.RegisterDatabaseService(builder.Configuration);
 
 			builder.Services.AddControllers();
 			builder.Services.AddEndpointsApiExplorer();
