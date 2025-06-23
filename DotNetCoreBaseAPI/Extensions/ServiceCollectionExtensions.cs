@@ -1,6 +1,5 @@
 ﻿using Asp.Versioning;
 using DotNetCoreBaseAPI.Handlers;
-using DotNetCoreBaseAPI.Utilities.Enums;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
