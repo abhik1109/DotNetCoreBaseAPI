@@ -1,28 +1,28 @@
 ﻿using DotNetCoreBaseAPI.Extensions;
+using DotNetCoreBaseAPI.Models;
+using DotNetCoreBaseAPI.Utilities.Enums;
+using DotNetCoreBaseAPI.Utilities.Policies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Serilog;
-using System.Reflection;
 
 namespace DotNetCoreBaseAPI
 {
 	public static class ProgramBase
 	{
 
-		public static WebApplicationBuilder CreateWebApplicationBuilder(this WebApplicationBuilder builder, string[] args)
+		public static WebApplicationBuilder CreateWebApplicationBuilder(this WebApplicationBuilder builder, string[] args,params object[] additionalInfo)
 		{
 			var env = builder.Environment;
 			var isDev = !env.IsProduction();
 
 			//Add configuration files
-			var workingDirectory=Directory.GetCurrentDirectory();
+			//var workingDirectory=AppContext.
 			var config = new ConfigurationBuilder()
 				.SetBasePath(AppContext.BaseDirectory)
-				.AddJsonFile($"appSettingsBase.json", optional: false, reloadOnChange: true)
+				//.AddJsonFile($"appSettingsBase.json", optional: false, reloadOnChange: true)
 				.AddJsonFile($"appSettings.json", optional: false, reloadOnChange: true)
 				.AddJsonFile($"appSettings.{env.EnvironmentName}.json", optional: true)
 				.AddEnvironmentVariables()
@@ -30,13 +30,11 @@ namespace DotNetCoreBaseAPI
 			builder.Configuration.AddConfiguration(config);
 
 			//Configure Serilog logger
-			var logger = new LoggerConfiguration()
-				.ReadFrom.Configuration(builder.Configuration)
-				.Enrich.FromLogContext()
-				.CreateLogger();
-
-			builder.Logging.ClearProviders();
-			builder.Logging.AddSerilog(logger);
+			if (additionalInfo.FirstOrDefault(x => x.GetType() == typeof(LoggerProvider)) != default)
+			{
+				var loggerProvider = (LoggerProvider)(additionalInfo.FirstOrDefault(x => x.GetType() == typeof(LoggerProvider))??LoggerProvider.NONE);
+				builder.RegisterLogging(loggerProvider);
+			}			
 
 			//Register auth services
 			builder.Services.RegisterAuthenticationServices(builder.Configuration);
@@ -47,8 +45,31 @@ namespace DotNetCoreBaseAPI
 			//Register Versioning
 			builder.Services.RegisterApiVersioning();
 
+			//Add named http client factory
+			if (additionalInfo.FirstOrDefault(x => x.GetType() == typeof(HttpClientMetadata)) != default)
+			{
+				HttpClientMetadata httpClientMetadata = (HttpClientMetadata)additionalInfo.FirstOrDefault(x => x.GetType() == typeof(HttpClientMetadata));
+				foreach(var client in httpClientMetadata?.httpClients)
+				{
+					builder.Services.AddHttpClient(client.ClientName, c =>
+					{
+						c.BaseAddress = new Uri(client.BaseUri);
+						foreach(var header in client.RequestHeaders)
+						{
+							c.DefaultRequestHeaders.Add(header.Key, header.Value);
+						}
+					});
+				}
+			}
 
-			builder.Services.AddControllers();
+			//Register client retry policies
+			builder.Services.AddSingleton<ClientRetryPolicy>(new ClientRetryPolicy());
+
+			builder.Services.AddControllers(options =>
+			{
+				// Enable 406 Not Acceptable status code
+				options.ReturnHttpNotAcceptable = true;
+			}).AddXmlSerializerFormatters();
 			builder.Services.AddEndpointsApiExplorer();
 			
 			builder.Services.AddHttpContextAccessor();
