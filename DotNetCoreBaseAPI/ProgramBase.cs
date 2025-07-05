@@ -2,11 +2,14 @@
 using DotNetCoreBaseAPI.Models;
 using DotNetCoreBaseAPI.Utilities.Enums;
 using DotNetCoreBaseAPI.Utilities.Policies;
+using HealthChecks.UI.Client;
+using HealthChecks.UI.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 
 namespace DotNetCoreBaseAPI
 {
@@ -18,15 +21,22 @@ namespace DotNetCoreBaseAPI
 			var env = builder.Environment;
 			var isDev = !env.IsProduction();
 
-			//Add configuration files
-			//var workingDirectory=AppContext.
-			var config = new ConfigurationBuilder()
-				.SetBasePath(AppContext.BaseDirectory)
-				//.AddJsonFile($"appSettingsBase.json", optional: false, reloadOnChange: true)
-				.AddJsonFile($"appSettings.json", optional: false, reloadOnChange: true)
-				.AddJsonFile($"appSettings.{env.EnvironmentName}.json", optional: true)
-				.AddEnvironmentVariables()
-				.Build();
+			//Read local json settings
+			//var currentDirectory = Environment.CurrentDirectory;
+			//using (StreamReader sr=new StreamReader($"{currentDirectory}\\appSettingsBase.json"))
+			//{
+			//	string json = sr.ReadToEnd();
+			//	var baseSettings = JsonConvert.DeserializeObject(json);
+			//}
+
+				//Add configuration files			
+				var config = new ConfigurationBuilder()
+					.SetBasePath(AppContext.BaseDirectory)
+					//.AddJsonFile($"appSettingsBase.json", optional: false, reloadOnChange: true)
+					.AddJsonFile($"appSettings.json", optional: false, reloadOnChange: true)
+					.AddJsonFile($"appSettings.{env.EnvironmentName}.json", optional: true)
+					.AddEnvironmentVariables()
+					.Build();
 			builder.Configuration.AddConfiguration(config);
 
 			//Configure Serilog logger
@@ -74,6 +84,9 @@ namespace DotNetCoreBaseAPI
 			
 			builder.Services.AddHttpContextAccessor();
 
+			//Register health checks
+			builder.Services.RegisterHealthChecks(builder.Configuration);
+
 			return builder;
 		}
 
@@ -89,10 +102,19 @@ namespace DotNetCoreBaseAPI
 			}
 			
 			app.UseHttpsRedirection();
-			//app.UseAuthentication();
+			app.UseAuthentication();
 			app.UseAuthorization();
 			app.MapControllers();
-
+			app.MapHealthChecks("api/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions()
+			{
+				Predicate = _ => true,
+				ResponseWriter=UIResponseWriter.WriteHealthCheckUIResponse
+			});
+			app.UseHealthChecksUI(delegate (Options options)
+			{
+				options.UIPath = "/heathcheck-ui";
+				options.AddCustomStylesheet("./HealthCheck/Custom.css");
+			});
 			return app;
 		}
 				

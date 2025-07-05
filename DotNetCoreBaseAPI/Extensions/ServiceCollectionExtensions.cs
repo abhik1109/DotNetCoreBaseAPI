@@ -1,5 +1,6 @@
 ﻿using Asp.Versioning;
 using DotNetCoreBaseAPI.Handlers;
+using DotNetCoreBaseAPI.Heathchecks;
 using DotNetCoreBaseAPI.Utilities.Enums;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -95,6 +96,25 @@ namespace DotNetCoreBaseAPI.Extensions
 				options.SubstituteApiVersionInUrl = true;
 			});
 
+			return services;
+		}
+
+		public static IServiceCollection RegisterHealthChecks(this IServiceCollection services, IConfiguration configuration)
+		{
+			services.AddHealthChecks()
+				.AddCheck<RemoteHealthCheck>("Remote endpoints health checks", failureStatus:Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy)
+				.AddCheck<MemoryHealthCheck>("Service memory check", failureStatus:Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy)
+				.AddUrlGroup(new Uri(configuration.GetValue<string>("HealthChecks:UrlGroup")??string.Empty));
+
+			//Health checks UI
+			services.AddHealthChecksUI(opt =>
+			{
+				opt.SetEvaluationTimeInSeconds(10);//time interval between checks
+				opt.MaximumHistoryEntriesPerEndpoint(60); //max check history
+				opt.SetApiMaxActiveRequests(1);// max api parallel request
+				opt.AddHealthCheckEndpoint("", "api/health");
+			})
+				.AddInMemoryStorage();
 			return services;
 		}
 
